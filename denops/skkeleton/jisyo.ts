@@ -266,22 +266,31 @@ export class Library {
   }
 }
 
+function parseEntries(lines: string[]): [string, string[]][] {
+  return lines.flatMap((s) => {
+    const m = s.match(lineRegexp);
+    if (m) {
+      return [[m[1], m[2].split("/")]];
+    } else {
+      return [];
+    }
+  });
+}
+
 export function decodeJisyo(data: string): LocalJisyo {
   const lines = data.split("\n");
 
   const okuriAriIndex = lines.indexOf(okuriAriMarker);
   const okuriNasiIndex = lines.indexOf(okuriNasiMarker);
 
-  const okuriAriEntries = lines.slice(okuriAriIndex + 1, okuriNasiIndex).map(
-    (s) => s.match(lineRegexp),
-  ).filter((m) => m).map((m) =>
-    [m![1], m![2].split("/")] as [string, string[]]
-  );
-  const okuriNasiEntries = lines.slice(okuriNasiIndex + 1, lines.length).map(
-    (s) => s.match(lineRegexp),
-  ).filter((m) => m).map((m) =>
-    [m![1], m![2].split("/")] as [string, string[]]
-  );
+  const okuriAriEntries = parseEntries(lines.slice(
+    okuriAriIndex + 1,
+    okuriNasiIndex,
+  ));
+  const okuriNasiEntries = parseEntries(lines.slice(
+    okuriNasiIndex + 1,
+    lines.length,
+  ));
 
   return new LocalJisyo(
     new Map(okuriAriEntries),
