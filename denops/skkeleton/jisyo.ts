@@ -182,24 +182,17 @@ export class Library {
 
   async getCandidate(type: HenkanType, word: string): Promise<string[]> {
     const userCandidates = await this.#userJisyo.getCandidate(type, word);
-    const merged = userCandidates.slice();
-    const globalCandidates = await this.#globalJisyo.getCandidate(type, word);
-    const remoteCandidates = await this.#skkServer?.getCandidate(word);
-    if (globalCandidates) {
-      for (const c of globalCandidates) {
-        if (!merged.includes(c)) {
-          merged.push(c);
-        }
-      }
+    const merged = new Set(userCandidates);
+    const globalCandidates = await this.#globalJisyo.getCandidate(type, word) ??
+      [];
+    const remoteCandidates = await this.#skkServer?.getCandidate(word) ?? [];
+    for (const c of globalCandidates) {
+      merged.add(c);
     }
-    if (remoteCandidates) {
-      for (const c of remoteCandidates) {
-        if (!merged.includes(c)) {
-          merged.push(c);
-        }
-      }
+    for (const c of remoteCandidates) {
+      merged.add(c);
     }
-    return merged;
+    return Array.from(merged);
   }
 
   async getCandidates(prefix: string): Promise<[string, string[]][]> {
