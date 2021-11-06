@@ -52,7 +52,7 @@ function convertNumber(pattern: string, entry: string): string {
     .join("");
 }
 
-export interface Jisyo {
+export interface SKKDict {
   getCandidate(type: HenkanType, word: string): Promise<string[]>;
   getCandidates(word: string): Promise<[string, string[]][]>;
 }
@@ -65,7 +65,7 @@ function encode(str: string, encode: Encoding): Uint8Array {
   return eucBytes;
 }
 
-export class LocalJisyo implements Jisyo {
+export class LocalJisyo implements SKKDict {
   #okuriari: Map<string, string[]>;
   #okurinasi: Map<string, string[]>;
   constructor(
@@ -310,7 +310,7 @@ function linesToString(entries: [string, string[]][]): string[] {
   );
 }
 
-export function ensureJisyo(x: unknown): asserts x is Jisyo {
+export function ensureJisyo(x: unknown): asserts x is SKKDict {
   if (x instanceof LocalJisyo) {
     return;
   }
