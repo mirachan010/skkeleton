@@ -161,6 +161,17 @@ export class SkkServer {
   }
 }
 
+function gatherCandidates(
+  collector: Map<string, Set<string>>,
+  candidates: [string, string[]][],
+) {
+  for (const [kana, cs] of candidates) {
+    const set = collector.get(kana) ?? new Set();
+    cs.forEach(set.add.bind(set));
+    collector.set(kana, set);
+  }
+}
+
 export class Library {
   #globalJisyo: LocalJisyo;
   #userJisyo: LocalJisyo;
@@ -199,20 +210,12 @@ export class Library {
     if (prefix.length < 2) {
       return [];
     }
-    const candidates = new Map<string, string[]>();
-    for (const [key, value] of await this.#userJisyo.getCandidates(prefix)) {
-      candidates.set(
-        key,
-        Array.from(new Set([...candidates.get(key) ?? [], ...value])),
-      );
-    }
-    for (const [key, value] of await this.#globalJisyo.getCandidates(prefix)) {
-      candidates.set(
-        key,
-        Array.from(new Set([...candidates.get(key) ?? [], ...value])),
-      );
-    }
-    return Array.from(candidates.entries());
+    const collector = new Map<string, Set<string>>();
+    gatherCandidates(collector, await this.#userJisyo.getCandidates(prefix));
+    gatherCandidates(collector, await this.#globalJisyo.getCandidates(prefix));
+    return Array.from(collector.entries()).map((
+      [kana, cset],
+    ) => [kana, Array.from(cset)]);
   }
 
   registerCandidate(type: HenkanType, word: string, candidate: string) {
