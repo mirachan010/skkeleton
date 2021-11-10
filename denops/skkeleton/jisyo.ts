@@ -110,10 +110,6 @@ export class LocalJisyo implements SKKDict {
   }
 }
 
-export function encodeJisyo(jisyo: LocalJisyo) {
-  return jisyo.toString();
-}
-
 export type HenkanType = "okuriari" | "okurinasi";
 
 function decode(str: Uint8Array, encode: Encoding): string {
@@ -251,7 +247,7 @@ export class Library {
       try {
         await Deno.writeTextFile(
           this.#userJisyoPath,
-          encodeJisyo(this.#userJisyo),
+          this.#userJisyo.toString(),
         );
       } catch {
         console.log(
