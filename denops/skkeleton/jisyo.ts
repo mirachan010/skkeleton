@@ -54,7 +54,7 @@ function convertNumber(pattern: string, entry: string): string {
 
 export interface SKKDict {
   getCandidate(type: HenkanType, word: string): Promise<string[]>;
-  getCandidates(word: string): Promise<[string, string[]][]>;
+  getCandidates(prefix: string): Promise<[string, string[]][]>;
 }
 
 function encode(str: string, encode: Encoding): Uint8Array {
@@ -65,9 +65,46 @@ function encode(str: string, encode: Encoding): Uint8Array {
   return eucBytes;
 }
 
+export class NumberConvertWrapper implements SKKDict {
+  #inner: SKKDict;
+
+  constructor(dict: SKKDict) {
+    this.#inner = dict;
+  }
+
+  async getCandidate(type: HenkanType, word: string): Promise<string[]> {
+    const realWord = word.replaceAll(/[0-9]+/g, "#");
+    const candidate = await this.#inner.getCandidate(type, realWord);
+    if (word === realWord) {
+      return candidate;
+    } else {
+      return candidate.map((c) => convertNumber(c, word));
+    }
+  }
+
+  async getCandidates(prefix: string): Promise<[string, string[]][]> {
+    const realPrefix = prefix.replaceAll(/[0-9]+/g, "#");
+    const candidates = await this.#inner.getCandidates(realPrefix);
+    if (prefix === realPrefix) {
+      return candidates;
+    } else {
+      return candidates.map((
+        [kana, cand],
+      ) => [kana, cand.map((c) => convertNumber(c, prefix))]);
+    }
+  }
+}
+
+function wrapDictionary(dict: SKKDict): SKKDict {
+  return new NumberConvertWrapper(
+    dict,
+  );
+}
+
 export class LocalJisyo implements SKKDict {
   #okuriari: Map<string, string[]>;
   #okurinasi: Map<string, string[]>;
+
   constructor(
     okuriari?: Map<string, string[]>,
     okurinasi?: Map<string, string[]>,
@@ -75,23 +112,22 @@ export class LocalJisyo implements SKKDict {
     this.#okuriari = okuriari ?? new Map();
     this.#okurinasi = okurinasi ?? new Map();
   }
+
   getCandidate(type: HenkanType, word: string): Promise<string[]> {
     const target = type === "okuriari" ? this.#okuriari : this.#okurinasi;
-    return Promise.resolve(
-      (target.get(word.replaceAll(/[0-9]+/g, "#")) ?? [])
-        .map((candidate) => convertNumber(candidate, word)),
-    );
+    return Promise.resolve(target.get(word) ?? []);
   }
+
   getCandidates(prefix: string): Promise<[string, string[]][]> {
     const candidates = new Map<string, string[]>();
     for (const [key, value] of this.#okurinasi) {
       if (key.startsWith(prefix)) {
-        // TODO: to get numebric candidates
         candidates.set(key, value);
       }
     }
     return Promise.resolve(Array.from(candidates.entries()));
   }
+
   registerCandidate(type: HenkanType, word: string, candidate: string) {
     const target = type === "okuriari" ? this.#okuriari : this.#okurinasi;
     target.set(
@@ -99,6 +135,7 @@ export class LocalJisyo implements SKKDict {
       Array.from(new Set([candidate, ...target.get(word) ?? []])),
     );
   }
+
   toString(): string {
     return [
       [okuriAriMarker],
@@ -169,7 +206,9 @@ function gatherCandidates(
 }
 
 export class Library {
-  #globalJisyo: LocalJisyo;
+  // #systemDictionaries: Jisyo[];
+
+  #globalJisyo: SKKDict;
   #userJisyo: LocalJisyo;
   #userJisyoPath: string;
   #userJisyoTimestamp = -1;
@@ -181,7 +220,7 @@ export class Library {
     userJisyoPath?: string,
     skkServer?: SkkServer,
   ) {
-    this.#globalJisyo = globalJisyo ?? new LocalJisyo();
+    this.#globalJisyo = wrapDictionary(globalJisyo ?? new LocalJisyo());
     this.#userJisyo = userJisyo ?? new LocalJisyo();
     this.#userJisyoPath = userJisyoPath ?? "";
     this.#skkServer = skkServer;
@@ -224,6 +263,7 @@ export class Library {
     }
   }
 
+  //TODO: ユーザー辞書インスタンスを壊さずにリロードできるようにする
   async loadJisyo() {
     if (this.#userJisyoPath) {
       try {
