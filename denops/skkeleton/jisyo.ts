@@ -344,9 +344,7 @@ export async function load(
     // do nothing
   }
   try {
-    if (skkServer) {
-      skkServer.connect();
-    }
+    skkServer?.connect();
   } catch (e) {
     if (config.debug) {
       console.log("connecting to skk server is failed");
