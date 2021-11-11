@@ -220,9 +220,9 @@ export class Library {
   ) {
     this.#userJisyo = userJisyo ?? new LocalJisyo();
     this.#userJisyoPath = userJisyoPath ?? "";
-    this.#dictionaries = [userJisyo, globalJisyo, skkServer].flatMap((d) =>
+    this.#dictionaries = [userJisyo, globalJisyo].flatMap((d) =>
       d ? [wrapDictionary(d)] : []
-    );
+    ).concat(skkServer ? [skkServer] : []);
   }
 
   async getCandidate(type: HenkanType, word: string): Promise<string[]> {
