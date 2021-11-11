@@ -206,13 +206,11 @@ function gatherCandidates(
 }
 
 export class Library {
-  // #systemDictionaries: Jisyo[];
+  #dictionaries: SKKDict[];
 
-  #globalJisyo: SKKDict;
   #userJisyo: LocalJisyo;
   #userJisyoPath: string;
   #userJisyoTimestamp = -1;
-  #skkServer: SkkServer | undefined;
 
   constructor(
     globalJisyo?: LocalJisyo,
@@ -220,23 +218,20 @@ export class Library {
     userJisyoPath?: string,
     skkServer?: SkkServer,
   ) {
-    this.#globalJisyo = wrapDictionary(globalJisyo ?? new LocalJisyo());
     this.#userJisyo = userJisyo ?? new LocalJisyo();
     this.#userJisyoPath = userJisyoPath ?? "";
-    this.#skkServer = skkServer;
+    this.#dictionaries = [userJisyo, globalJisyo, skkServer].flatMap((d) =>
+      d ? [wrapDictionary(d)] : []
+    );
   }
 
   async getCandidate(type: HenkanType, word: string): Promise<string[]> {
     const userCandidates = await this.#userJisyo.getCandidate(type, word);
     const merged = new Set(userCandidates);
-    const globalCandidates = await this.#globalJisyo.getCandidate(type, word) ??
-      [];
-    const remoteCandidates = await this.#skkServer?.getCandidate(word) ?? [];
-    for (const c of globalCandidates) {
-      merged.add(c);
-    }
-    for (const c of remoteCandidates) {
-      merged.add(c);
+    for (const dic of this.#dictionaries) {
+      for (const c of await dic.getCandidate(type, word)) {
+        merged.add(c);
+      }
     }
     return Array.from(merged);
   }
@@ -246,8 +241,9 @@ export class Library {
       return [];
     }
     const collector = new Map<string, Set<string>>();
-    gatherCandidates(collector, await this.#userJisyo.getCandidates(prefix));
-    gatherCandidates(collector, await this.#globalJisyo.getCandidates(prefix));
+    for (const dic of this.#dictionaries) {
+      gatherCandidates(collector, await dic.getCandidates(prefix));
+    }
     return Array.from(collector.entries()).map((
       [kana, cset],
     ) => [kana, Array.from(cset)]);
@@ -265,6 +261,11 @@ export class Library {
 
   //TODO: ユーザー辞書インスタンスを壊さずにリロードできるようにする
   async loadJisyo() {
+    // FIXME: 一時的に無効化
+    const t = true;
+    if (t) {
+      return;
+    }
     if (this.#userJisyoPath) {
       try {
         const stat = await Deno.stat(this.#userJisyoPath);
