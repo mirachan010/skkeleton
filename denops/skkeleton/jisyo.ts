@@ -311,13 +311,6 @@ function linesToString(entries: [string, string[]][]): string[] {
   );
 }
 
-export function ensureJisyo(x: unknown): asserts x is SKKDict {
-  if (x instanceof LocalJisyo) {
-    return;
-  }
-  throw new Error("corrupt jisyo detected");
-}
-
 export async function load(
   globalJisyoPath: string,
   userJisyoPath: string,
