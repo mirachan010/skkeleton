@@ -101,39 +101,103 @@ function wrapDictionary(dict: SKKDict): SKKDict {
   );
 }
 
-export class LocalJisyo implements SKKDict {
-  #okuriari: Map<string, string[]>;
-  #okurinasi: Map<string, string[]>;
+type DictEntry = {
+  candidate: string[];
+  // rankの値は並び順と時間を混ぜられるようにする
+  // 時系列で新しいほど前に出るようにするため
+  // 並び順は新しい物を後にする必要がある
+  rank: number;
+};
+
+export class UserDict implements SKKDict {
+  #okuriAri: Map<string, DictEntry>;
+  #okuriNasi: Map<string, DictEntry>;
+
+  #path = "";
+  #loadTime = -1;
 
   constructor(
-    okuriari?: Map<string, string[]>,
-    okurinasi?: Map<string, string[]>,
+    okuriAri?: Map<string, DictEntry>,
+    okuriNasi?: Map<string, DictEntry>,
   ) {
-    this.#okuriari = okuriari ?? new Map();
-    this.#okurinasi = okurinasi ?? new Map();
+    this.#okuriAri = okuriAri ?? new Map();
+    this.#okuriNasi = okuriNasi ?? new Map();
   }
 
   getCandidate(type: HenkanType, word: string): Promise<string[]> {
-    const target = type === "okuriari" ? this.#okuriari : this.#okurinasi;
-    return Promise.resolve(target.get(word) ?? []);
+    const target = type === "okuriari" ? this.#okuriAri : this.#okuriNasi;
+    return Promise.resolve(target.get(word)?.candidate ?? []);
   }
 
   getCandidates(prefix: string): Promise<[string, string[]][]> {
-    const candidates = new Map<string, string[]>();
-    for (const [key, value] of this.#okurinasi) {
-      if (key.startsWith(prefix)) {
-        candidates.set(key, value);
+    const candidates: [string, DictEntry][] = [];
+    for (const entry of this.#okuriNasi) {
+      if (entry[0].startsWith(prefix)) {
+        candidates.push(entry);
       }
     }
-    return Promise.resolve(Array.from(candidates.entries()));
+    candidates.sort((a, b) => b[1].rank - a[1].rank);
+    return Promise.resolve(candidates.map(([kana, e]) => [kana, e.candidate]));
   }
 
   registerCandidate(type: HenkanType, word: string, candidate: string) {
-    const target = type === "okuriari" ? this.#okuriari : this.#okurinasi;
+    const target = type === "okuriari" ? this.#okuriAri : this.#okuriNasi;
+    const oldCandidate = target.get(word)?.candidate ?? [];
     target.set(
       word,
-      Array.from(new Set([candidate, ...target.get(word) ?? []])),
+      {
+        candidate: Array.from(new Set([candidate, ...oldCandidate])),
+        rank: Date.now(),
+      },
     );
+  }
+
+  async readFile(path: string) {
+    const lines = (await Deno.readTextFile(this.#path)).split("\n");
+
+    const okuriAriIndex = lines.indexOf(okuriAriMarker);
+    const okuriNasiIndex = lines.indexOf(okuriNasiMarker);
+
+    const okuriAriEntries = parseEntries(lines.slice(
+      okuriAriIndex + 1,
+      okuriNasiIndex,
+    ));
+    const okuriNasiEntries = parseEntries(lines.slice(
+      okuriNasiIndex + 1,
+      lines.length,
+    ));
+
+    this.#okuriAri = new Map(okuriAriEntries.map((e, i) => [e[0], {
+      candidate: e[1],
+      rank: i,
+    }]));
+    this.#okuriNasi = new Map(okuriNasiEntries.map((e, i) => [e[0], {
+      candidate: e[1],
+      rank: i,
+    }]));
+  }
+
+  async load(path?: string) {
+    path = this.#path = path ?? this.#path;
+    if (path) {
+      try {
+        const stat = await Deno.stat(path);
+        const time = stat.mtime?.getTime() ?? -1;
+        if (time === this.#loadTime) {
+          return;
+        }
+        this.#loadTime = time;
+        this.readFile(path);
+      } catch {
+        // do nothing
+      }
+    }
+  }
+
+  async save() {
+    if (this.#path) {
+      return;
+    }
   }
 
   toString(): string {
@@ -208,7 +272,7 @@ function gatherCandidates(
 export class Library {
   #dictionaries: SKKDict[];
 
-  #userJisyo: LocalJisyo;
+  #userDictionary: UserDict;
   #userJisyoPath: string;
   #userJisyoTimestamp = -1;
 
@@ -255,31 +319,7 @@ export class Library {
     }
     this.#userJisyo.registerCandidate(type, word, candidate);
     if (config.immediatelyJisyoRW) {
-      this.saveJisyo();
-    }
-  }
-
-  //TODO: ユーザー辞書インスタンスを壊さずにリロードできるようにする
-  async loadJisyo() {
-    // FIXME: 一時的に無効化
-    const t = true;
-    if (t) {
-      return;
-    }
-    if (this.#userJisyoPath) {
-      try {
-        const stat = await Deno.stat(this.#userJisyoPath);
-        const time = stat.mtime?.getTime() ?? -1;
-        if (time === this.#userJisyoTimestamp) {
-          return;
-        }
-        this.#userJisyoTimestamp = time;
-        this.#userJisyo = decodeJisyo(
-          await Deno.readTextFile(this.#userJisyoPath),
-        );
-      } catch {
-        // do nothing
-      }
+      this.#userJisyo.save();
     }
   }
 
