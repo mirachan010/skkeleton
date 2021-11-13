@@ -153,7 +153,7 @@ export class UserDict implements SKKDict {
   }
 
   async readFile(path: string) {
-    const lines = (await Deno.readTextFile(this.#path)).split("\n");
+    const lines = (await Deno.readTextFile(path)).split("\n");
 
     const okuriAriIndex = lines.indexOf(okuriAriMarker);
     const okuriNasiIndex = lines.indexOf(okuriNasiMarker);
