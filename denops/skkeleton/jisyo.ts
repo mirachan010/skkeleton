@@ -109,6 +109,55 @@ type DictEntry = {
   rank: number;
 };
 
+export class SKKDictionary implements Dictionary {
+  #okuriAri: Map<string, string[]>;
+  #okuriNasi: Map<string, string[]>;
+
+  constructor(
+    okuriAri?: Map<string, string[]>,
+    okuriNasi?: Map<string, string[]>,
+  ) {
+    this.#okuriAri = okuriAri ?? new Map();
+    this.#okuriNasi = okuriNasi ?? new Map();
+  }
+
+  getCandidate(type: HenkanType, word: string): Promise<string[]> {
+    const target = type === "okuriari" ? this.#okuriAri : this.#okuriNasi;
+    return Promise.resolve(target.get(word) ?? []);
+  }
+
+  getCandidates(prefix: string): Promise<[string, string[]][]> {
+    const candidates: [string, string[]][] = [];
+    for (const entry of this.#okuriNasi) {
+      if (entry[0].startsWith(prefix)) {
+        candidates.push(entry);
+      }
+    }
+    candidates.sort((a, b) => a[0].localeCompare(b[0]));
+    return Promise.resolve(candidates);
+  }
+
+  async load(path: string, encoding: string) {
+    const decoder = new TextDecoder(encoding);
+    const lines = decoder.decode(await Deno.readFile(path)).split("\n");
+
+    const okuriAriIndex = lines.indexOf(okuriAriMarker);
+    const okuriNasiIndex = lines.indexOf(okuriNasiMarker);
+
+    const okuriAriEntries = parseEntries(lines.slice(
+      okuriAriIndex + 1,
+      okuriNasiIndex,
+    ));
+    const okuriNasiEntries = parseEntries(lines.slice(
+      okuriNasiIndex + 1,
+      lines.length,
+    ));
+
+    this.#okuriAri = new Map(okuriAriEntries);
+    this.#okuriNasi = new Map(okuriNasiEntries);
+  }
+}
+
 export class UserDictionary implements Dictionary {
   #okuriAri: Map<string, DictEntry>;
   #okuriNasi: Map<string, DictEntry>;
@@ -279,15 +328,13 @@ export class Library {
   #userDictionary: UserDictionary;
 
   constructor(
-    globalJisyo?: UserDictionary,
-    userJisyo?: UserDictionary,
-    userJisyoPath?: string,
-    skkServer?: SkkServer,
+    dictionaries?: Dictionary[],
+    userDictionary?: UserDictionary,
   ) {
-    this.#userDictionary = userJisyo ?? new UserDictionary();
-    this.#dictionaries = [userJisyo, globalJisyo].flatMap((d) =>
-      d ? [wrapDictionary(d)] : []
-    ).concat(skkServer ? [skkServer] : []);
+    this.#userDictionary = userDictionary ?? new UserDictionary();
+    this.#dictionaries = [wrapDictionary(this.#userDictionary)].concat(
+      dictionaries ?? [],
+    );
   }
 
   async getCandidate(type: HenkanType, word: string): Promise<string[]> {
@@ -349,10 +396,10 @@ export async function load(
   jisyoEncoding = "euc-jp",
   skkServer?: SkkServer,
 ): Promise<Library> {
-  const globalJisyo = new UserDictionary();
+  const globalJisyo = new SKKDictionary();
   const userJisyo = new UserDictionary();
   try {
-    await globalJisyo.load(globalJisyoPath);
+    await globalJisyo.load(globalJisyoPath, jisyoEncoding);
   } catch (e) {
     console.error("globalJisyo loading failed");
     console.error(`at ${globalJisyoPath}`);
@@ -377,7 +424,10 @@ export async function load(
       console.log(e);
     }
   }
-  return new Library(globalJisyo, userJisyo, userJisyoPath, skkServer);
+  const dictionaries = [globalJisyo].flatMap((d) =>
+    d ? [wrapDictionary(d)] : []
+  ).concat(skkServer ? [skkServer] : []);
+  return new Library(dictionaries, userJisyo);
 }
 
 export const currentLibrary = new Cell(() => new Library());
