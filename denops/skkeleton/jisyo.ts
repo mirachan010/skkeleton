@@ -52,7 +52,7 @@ function convertNumber(pattern: string, entry: string): string {
     .join("");
 }
 
-export interface SKKDict {
+export interface Dictionary {
   getCandidate(type: HenkanType, word: string): Promise<string[]>;
   getCandidates(prefix: string): Promise<[string, string[]][]>;
 }
@@ -65,10 +65,10 @@ function encode(str: string, encode: Encoding): Uint8Array {
   return eucBytes;
 }
 
-export class NumberConvertWrapper implements SKKDict {
-  #inner: SKKDict;
+export class NumberConvertWrapper implements Dictionary {
+  #inner: Dictionary;
 
-  constructor(dict: SKKDict) {
+  constructor(dict: Dictionary) {
     this.#inner = dict;
   }
 
@@ -95,7 +95,7 @@ export class NumberConvertWrapper implements SKKDict {
   }
 }
 
-function wrapDictionary(dict: SKKDict): SKKDict {
+function wrapDictionary(dict: Dictionary): Dictionary {
   return new NumberConvertWrapper(
     dict,
   );
@@ -109,7 +109,7 @@ type DictEntry = {
   rank: number;
 };
 
-export class UserDict implements SKKDict {
+export class UserDictionary implements Dictionary {
   #okuriAri: Map<string, DictEntry>;
   #okuriNasi: Map<string, DictEntry>;
 
@@ -222,7 +222,7 @@ function decode(str: Uint8Array, encode: Encoding): string {
   return decoder.decode(str);
 }
 
-export class SkkServer implements SKKDict {
+export class SkkServer implements Dictionary {
   #conn: Deno.Conn | undefined;
   responseEncoding: Encoding;
   requestEncoding: Encoding;
@@ -274,17 +274,17 @@ function gatherCandidates(
 }
 
 export class Library {
-  #dictionaries: SKKDict[];
+  #dictionaries: Dictionary[];
 
-  #userDictionary: UserDict;
+  #userDictionary: UserDictionary;
 
   constructor(
-    globalJisyo?: UserDict,
-    userJisyo?: UserDict,
+    globalJisyo?: UserDictionary,
+    userJisyo?: UserDictionary,
     userJisyoPath?: string,
     skkServer?: SkkServer,
   ) {
-    this.#userDictionary = userJisyo ?? new UserDict();
+    this.#userDictionary = userJisyo ?? new UserDictionary();
     this.#dictionaries = [userJisyo, globalJisyo].flatMap((d) =>
       d ? [wrapDictionary(d)] : []
     ).concat(skkServer ? [skkServer] : []);
@@ -349,8 +349,8 @@ export async function load(
   jisyoEncoding = "euc-jp",
   skkServer?: SkkServer,
 ): Promise<Library> {
-  const globalJisyo = new UserDict();
-  const userJisyo = new UserDict();
+  const globalJisyo = new UserDictionary();
+  const userJisyo = new UserDictionary();
   try {
     await globalJisyo.load(globalJisyoPath);
   } catch (e) {
