@@ -152,7 +152,7 @@ export class UserDict implements SKKDict {
     );
   }
 
-  async readFile(path: string) {
+  private async readFile(path: string) {
     const lines = (await Deno.readTextFile(path)).split("\n");
 
     const okuriAriIndex = lines.indexOf(okuriAriMarker);
@@ -195,19 +195,23 @@ export class UserDict implements SKKDict {
   }
 
   async save() {
-    if (this.#path) {
+    if (!this.#path) {
       return;
     }
-  }
-
-  toString(): string {
-    return [
+    const okuriAri = Array.from(this.#okuriAri).sort((a, b) =>
+      b[0].localeCompare(a[0])
+    ).map((e) => `${e[0]} /${e[1].candidate.join("/")}/`);
+    const okuriNasi = Array.from(this.#okuriNasi).sort((a, b) =>
+      a[1].rank - b[1].rank
+    ).map((e) => `${e[0]} /${e[1].candidate.join("/")}/`);
+    const data = [
       [okuriAriMarker],
-      linesToString(Array.from(this.#okuriari.entries())),
+      okuriAri,
       [okuriNasiMarker],
-      linesToString(Array.from(this.#okurinasi.entries())),
-      [""], // The text file must end with a new line
+      okuriNasi,
+      [""],
     ].flat().join("\n");
+    await Deno.writeTextFile(this.#path, data);
   }
 }
 
@@ -273,25 +277,21 @@ export class Library {
   #dictionaries: SKKDict[];
 
   #userDictionary: UserDict;
-  #userJisyoPath: string;
-  #userJisyoTimestamp = -1;
 
   constructor(
-    globalJisyo?: LocalJisyo,
-    userJisyo?: LocalJisyo,
+    globalJisyo?: UserDict,
+    userJisyo?: UserDict,
     userJisyoPath?: string,
     skkServer?: SkkServer,
   ) {
-    this.#userJisyo = userJisyo ?? new LocalJisyo();
-    this.#userJisyoPath = userJisyoPath ?? "";
+    this.#userDictionary = userJisyo ?? new UserDict();
     this.#dictionaries = [userJisyo, globalJisyo].flatMap((d) =>
       d ? [wrapDictionary(d)] : []
     ).concat(skkServer ? [skkServer] : []);
   }
 
   async getCandidate(type: HenkanType, word: string): Promise<string[]> {
-    const userCandidates = await this.#userJisyo.getCandidate(type, word);
-    const merged = new Set(userCandidates);
+    const merged = new Set<string>();
     for (const dic of this.#dictionaries) {
       for (const c of await dic.getCandidate(type, word)) {
         merged.add(c);
@@ -317,29 +317,18 @@ export class Library {
     if (!candidate) {
       return;
     }
-    this.#userJisyo.registerCandidate(type, word, candidate);
+    this.#userDictionary.registerCandidate(type, word, candidate);
     if (config.immediatelyJisyoRW) {
-      this.#userJisyo.save();
+      this.#userDictionary.save();
     }
   }
 
+  async loadJisyo() {
+    await this.#userDictionary.load();
+  }
+
   async saveJisyo() {
-    if (this.#userJisyoPath) {
-      try {
-        await Deno.writeTextFile(
-          this.#userJisyoPath,
-          this.#userJisyo.toString(),
-        );
-      } catch {
-        console.log(
-          `warning(skkeleton): can't write userJisyo to ${this.#userJisyoPath}`,
-        );
-        return;
-      }
-      const stat = await Deno.stat(this.#userJisyoPath);
-      const time = stat.mtime?.getTime() ?? -1;
-      this.#userJisyoTimestamp = time;
-    }
+    await this.#userDictionary.save();
   }
 }
 
@@ -354,57 +343,16 @@ function parseEntries(lines: string[]): [string, string[]][] {
   });
 }
 
-export function decodeJisyo(data: string): LocalJisyo {
-  const lines = data.split("\n");
-
-  const okuriAriIndex = lines.indexOf(okuriAriMarker);
-  const okuriNasiIndex = lines.indexOf(okuriNasiMarker);
-
-  const okuriAriEntries = parseEntries(lines.slice(
-    okuriAriIndex + 1,
-    okuriNasiIndex,
-  ));
-  const okuriNasiEntries = parseEntries(lines.slice(
-    okuriNasiIndex + 1,
-    lines.length,
-  ));
-
-  return new LocalJisyo(
-    new Map(okuriAriEntries),
-    new Map(okuriNasiEntries),
-  );
-}
-
-/**
- * load SKK jisyo from `path`
- */
-export async function loadJisyo(
-  path: string,
-  jisyoEncoding: string,
-): Promise<LocalJisyo> {
-  const decoder = new TextDecoder(jisyoEncoding);
-  return decodeJisyo(decoder.decode(await Deno.readFile(path)));
-}
-
-function linesToString(entries: [string, string[]][]): string[] {
-  return entries.sort((a, b) => a[0].localeCompare(b[0])).map((entry) =>
-    `${entry[0]} /${entry[1].join("/")}/`
-  );
-}
-
 export async function load(
   globalJisyoPath: string,
   userJisyoPath: string,
   jisyoEncoding = "euc-jp",
   skkServer?: SkkServer,
 ): Promise<Library> {
-  let globalJisyo = new LocalJisyo();
-  let userJisyo = new LocalJisyo();
+  const globalJisyo = new UserDict();
+  const userJisyo = new UserDict();
   try {
-    globalJisyo = await loadJisyo(
-      globalJisyoPath,
-      jisyoEncoding,
-    );
+    await globalJisyo.load(globalJisyoPath);
   } catch (e) {
     console.error("globalJisyo loading failed");
     console.error(`at ${globalJisyoPath}`);
@@ -413,10 +361,7 @@ export async function load(
     }
   }
   try {
-    userJisyo = await loadJisyo(
-      userJisyoPath,
-      "utf-8",
-    );
+    await userJisyo.load(userJisyoPath);
   } catch (e) {
     if (config.debug) {
       console.log("userJisyo loading failed");
