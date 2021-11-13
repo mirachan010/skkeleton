@@ -95,7 +95,7 @@ export class NumberConvertWrapper implements Dictionary {
   }
 }
 
-function wrapDictionary(dict: Dictionary): Dictionary {
+export function wrapDictionary(dict: Dictionary): Dictionary {
   return new NumberConvertWrapper(
     dict,
   );
@@ -370,11 +370,11 @@ export class Library {
     }
   }
 
-  async loadJisyo() {
+  async load() {
     await this.#userDictionary.load();
   }
 
-  async saveJisyo() {
+  async save() {
     await this.#userDictionary.save();
   }
 }

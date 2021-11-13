@@ -1,13 +1,10 @@
 import { dirname, fromFileUrl, join } from "./deps/std/path.ts";
 import { assertEquals } from "./deps/std/testing.ts";
 import {
-  decodeJisyo,
-  encodeJisyo,
-  ensureJisyo,
   Library,
-  load,
-  loadJisyo,
-  LocalJisyo,
+  SKKDictionary,
+  UserDictionary,
+  wrapDictionary,
 } from "./jisyo.ts";
 
 const globalJisyo = join(
@@ -28,48 +25,31 @@ const numJisyo = join(
   "numJisyo",
 );
 
-Deno.test({
-  name: "load jisyo",
-  async fn() {
-    const jisyo = await loadJisyo(globalJisyo, "euc-jp");
-    ensureJisyo(jisyo);
-    const data = new LocalJisyo(
-      new Map([["てすt", ["テスト"]]]),
-      new Map([["てすと", ["テスト", "test"]]]),
-    );
-    assertEquals(jisyo, data);
-  },
-});
+async function load(path: string, encoding: string): Promise<SKKDictionary> {
+  const dic = new SKKDictionary();
+  await dic.load(path, encoding);
+  return dic;
+}
 
 Deno.test({
   name: "get candidates",
   async fn() {
-    const jisyo = await loadJisyo(globalJisyo, "euc-jp");
-    const manager = new Library(jisyo);
+    const jisyo = await load(globalJisyo, "euc-jp");
+    const manager = new Library([jisyo]);
     const ari = await manager.getCandidate("okuriari", "てすt");
     assertEquals(["テスト"], ari);
     const nasi = await manager.getCandidate("okurinasi", "てすと");
-    assertEquals(["テスト", "test"], nasi);
+    assertEquals(nasi, ["テスト", "test"]);
   },
 });
 
 Deno.test({
   name: "get num candidates",
   async fn() {
-    const jisyo = await loadJisyo(numJisyo, "euc-jp");
-    const manager = new Library(jisyo);
+    const jisyo = wrapDictionary(await load(numJisyo, "euc-jp"));
+    const manager = new Library([jisyo]);
     const nasi = await manager.getCandidate("okurinasi", "101ばん");
-    assertEquals(["101番", "１０１番", "一〇一番", "百一番"], nasi);
-  },
-});
-
-Deno.test({
-  name: "get num candidates",
-  async fn() {
-    const jisyo = await loadJisyo(numJisyo, "euc-jp");
-    const manager = new Library(jisyo);
-    const nasi = await manager.getCandidate("okurinasi", "101ばん");
-    assertEquals(["101番", "１０１番", "一〇一番", "百一番"], nasi);
+    assertEquals(nasi, ["101番", "１０１番", "一〇一番", "百一番"]);
   },
 });
 
@@ -90,8 +70,8 @@ Deno.test({
 Deno.test({
   name: "global/local jisyo interop",
   async fn() {
-    const jisyo = await loadJisyo(globalJisyo, "euc-jp");
-    const library = new Library(jisyo);
+    const jisyo = await load(globalJisyo, "euc-jp");
+    const library = new Library([jisyo]);
     library.registerCandidate("okurinasi", "てすと", "test");
 
     // remove dup
@@ -107,23 +87,10 @@ Deno.test({
 });
 
 Deno.test({
-  name: "encode/decode skk jisyo",
-  async fn() {
-    const data = new TextDecoder("euc-jp").decode(
-      await Deno.readFile(globalJisyo),
-    );
-    const jisyo = decodeJisyo(data);
-    const redata = encodeJisyo(jisyo);
-    assertEquals(redata, data);
-  },
-});
-
-Deno.test({
   name: "read/write skk jisyo",
   async fn() {
     const tmp = await Deno.makeTempFile();
     try {
-      const library = await load("", tmp);
       await Deno.writeTextFile(
         tmp,
         `
@@ -134,12 +101,13 @@ Deno.test({
       );
 
       // load
-      await library.loadJisyo();
-      assertEquals(await library.getCandidate("okurinasi", "あ"), ["あ"]);
+      const dic = new UserDictionary();
+      await dic.load(tmp);
+      assertEquals(await dic.getCandidate("okurinasi", "あ"), ["あ"]);
 
       //save
-      library.registerCandidate("okurinasi", "あ", "亜");
-      await library.saveJisyo();
+      dic.registerCandidate("okurinasi", "あ", "亜");
+      await dic.save();
       const data = await Deno.readTextFile(tmp);
       const line = data.split("\n").find((value) => value.startsWith("あ"));
       assertEquals(line, "あ /亜/あ/");
@@ -152,29 +120,16 @@ Deno.test({
 Deno.test({
   name: "don't register empty candidate",
   async fn() {
-    const tmp = await Deno.makeTempFile();
-    try {
-      const lib = new Library(undefined, undefined, tmp);
-      lib.registerCandidate("okurinasi", "ほげ", "");
-      lib.registerCandidate("okuriari", "ほげ", "");
-      await lib.saveJisyo();
-      assertEquals(
-        (await Deno.readTextFile(tmp)).indexOf("ほげ"),
-        -1,
-      );
-    } finally {
-      await Deno.remove(tmp);
-    }
-  },
-});
-
-Deno.test({
-  name: "Bulk load jisyo",
-  async fn() {
-    const library = await load(globalJisyo, userJisyo, "euc-jp");
-    const global = await library.getCandidate("okurinasi", "てすと");
-    assertEquals(["テスト", "test"], global);
-    const user = await library.getCandidate("okurinasi", "ユーザー辞書");
-    assertEquals(["ほげ"], user);
+    const dic = new UserDictionary();
+    dic.registerCandidate("okurinasi", "ほげ", "");
+    dic.registerCandidate("okuriari", "ほげ", "");
+    assertEquals(
+      await dic.getCandidate("okurinasi", "ほげ"),
+      [],
+    );
+    assertEquals(
+      await dic.getCandidate("okuriari", "ほげ"),
+      [],
+    );
   },
 });
