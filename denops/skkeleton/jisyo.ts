@@ -236,7 +236,7 @@ export class UserDictionary implements Dictionary {
           return;
         }
         this.#loadTime = time;
-        this.readFile(path);
+        await this.readFile(path);
       } catch {
         // do nothing
       }
