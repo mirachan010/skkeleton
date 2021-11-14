@@ -263,7 +263,13 @@ export class UserDictionary implements Dictionary {
       okuriNasi,
       [""],
     ].flat().join("\n");
-    await Deno.writeTextFile(this.#path, data);
+    try {
+      await Deno.writeTextFile(this.#path, data);
+    } catch {
+      console.log(
+        `warning(skkeleton): can't write userJisyo to ${this.#path}`,
+      );
+    }
   }
 }
 
