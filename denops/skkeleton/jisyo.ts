@@ -190,6 +190,9 @@ export class UserDictionary implements Dictionary {
   }
 
   registerCandidate(type: HenkanType, word: string, candidate: string) {
+    if (candidate === "") {
+      return;
+    }
     const target = type === "okuriari" ? this.#okuriAri : this.#okuriNasi;
     const oldCandidate = target.get(word)?.candidate ?? [];
     target.set(
@@ -361,9 +364,6 @@ export class Library {
   }
 
   registerCandidate(type: HenkanType, word: string, candidate: string) {
-    if (!candidate) {
-      return;
-    }
     this.#userDictionary.registerCandidate(type, word, candidate);
     if (config.immediatelyJisyoRW) {
       this.#userDictionary.save();
