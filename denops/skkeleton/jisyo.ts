@@ -397,27 +397,27 @@ function parseEntries(lines: string[]): [string, string[]][] {
 }
 
 export async function load(
-  globalJisyoPath: string,
-  userJisyoPath: string,
+  globalDictionaryPath: string,
+  userDictionaryPath: string,
   jisyoEncoding = "euc-jp",
   skkServer?: SkkServer,
 ): Promise<Library> {
-  const globalJisyo = new SKKDictionary();
-  const userJisyo = new UserDictionary();
+  const globalDictionary = new SKKDictionary();
+  const userDictionary = new UserDictionary();
   try {
-    await globalJisyo.load(globalJisyoPath, jisyoEncoding);
+    await globalDictionary.load(globalDictionaryPath, jisyoEncoding);
   } catch (e) {
-    console.error("globalJisyo loading failed");
-    console.error(`at ${globalJisyoPath}`);
+    console.error("globalDictionary loading failed");
+    console.error(`at ${globalDictionaryPath}`);
     if (config.debug) {
       console.error(e);
     }
   }
   try {
-    await userJisyo.load(userJisyoPath);
+    await userDictionary.load(userDictionaryPath);
   } catch (e) {
     if (config.debug) {
-      console.log("userJisyo loading failed");
+      console.log("userDictionary loading failed");
       console.log(e);
     }
     // do nothing
@@ -430,10 +430,10 @@ export async function load(
       console.log(e);
     }
   }
-  const dictionaries = [globalJisyo].flatMap((d) =>
+  const dictionaries = [globalDictionary].flatMap((d) =>
     d ? [wrapDictionary(d)] : []
   ).concat(skkServer ? [skkServer] : []);
-  return new Library(dictionaries, userJisyo);
+  return new Library(dictionaries, userDictionary);
 }
 
 export const currentLibrary = new Cell(() => new Library());
