@@ -3,7 +3,7 @@ import { encoding } from "./deps/encoding_japanese.ts";
 import { JpNum } from "./deps/japanese_numeral.ts";
 import { zip } from "./deps/std/collections.ts";
 import { iter } from "./deps/std/io.ts";
-import { Encode } from "./types.ts";
+import { CompletionData, emptyCompletion, Encode } from "./types.ts";
 import type { Encoding, SkkServerOptions } from "./types.ts";
 import { Cell } from "./util.ts";
 
@@ -356,17 +356,20 @@ export class Library {
     return Array.from(merged);
   }
 
-  async getCandidates(prefix: string): Promise<[string, string[]][]> {
+  async getCandidates(prefix: string): Promise<CompletionData> {
     if (prefix.length < 2) {
-      return [];
+      return emptyCompletion;
     }
     const collector = new Map<string, Set<string>>();
     for (const dic of this.#dictionaries) {
       gatherCandidates(collector, await dic.getCandidates(prefix));
     }
-    return Array.from(collector.entries()).map((
-      [kana, cset],
-    ) => [kana, Array.from(cset)]);
+    return {
+      candidates: Array.from(collector.entries()).map((
+        [kana, cset],
+      ) => [kana, Array.from(cset)]),
+      ranks: [],
+    };
   }
 
   registerCandidate(type: HenkanType, word: string, candidate: string) {
