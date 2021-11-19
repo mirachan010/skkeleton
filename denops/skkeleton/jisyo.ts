@@ -399,13 +399,13 @@ function parseEntries(lines: string[]): [string, string[]][] {
 export async function load(
   globalDictionaryPath: string,
   userDictionaryPath: string,
-  jisyoEncoding = "euc-jp",
+  dictonaryEncoding = "euc-jp",
   skkServer?: SkkServer,
 ): Promise<Library> {
   const globalDictionary = new SKKDictionary();
   const userDictionary = new UserDictionary();
   try {
-    await globalDictionary.load(globalDictionaryPath, jisyoEncoding);
+    await globalDictionary.load(globalDictionaryPath, dictonaryEncoding);
   } catch (e) {
     console.error("globalDictionary loading failed");
     console.error(`at ${globalDictionaryPath}`);
