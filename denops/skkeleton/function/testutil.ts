@@ -27,7 +27,7 @@ export async function dispatch(context: Context, keys: string) {
             henkanPoint(context);
             break;
           case "\n":
-            newline(context);
+            await newline(context);
             break;
           default:
             await kanaInput(context, key);
@@ -42,7 +42,7 @@ export async function dispatch(context: Context, keys: string) {
             await henkanBackward(context);
             break;
           case "\n":
-            newline(context);
+            await newline(context);
             break;
         }
         break;

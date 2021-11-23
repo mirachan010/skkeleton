@@ -372,10 +372,10 @@ export class Library {
     };
   }
 
-  registerCandidate(type: HenkanType, word: string, candidate: string) {
+  async registerCandidate(type: HenkanType, word: string, candidate: string) {
     this.#userDictionary.registerCandidate(type, word, candidate);
     if (config.immediatelyJisyoRW) {
-      this.#userDictionary.save();
+      await this.#userDictionary.save();
     }
   }
 

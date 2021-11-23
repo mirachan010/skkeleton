@@ -4,14 +4,14 @@ import { currentLibrary } from "../jisyo.ts";
 import { initializeState, resetState } from "../state.ts";
 import { kakuteiFeed } from "./input.ts";
 
-export function kakutei(context: Context) {
+export async function kakutei(context: Context) {
   const state = context.state;
   switch (state.type) {
     case "henkan": {
       const candidate = state.candidates[state.candidateIndex];
       const candidateStrip = candidate?.replace(/;.*/, "");
       if (candidate) {
-        currentLibrary.get().registerCandidate(
+        await currentLibrary.get().registerCandidate(
           state.mode,
           state.word,
           candidate,
@@ -38,11 +38,11 @@ export function kakutei(context: Context) {
   resetState(state);
 }
 
-export function newline(context: Context) {
+export async function newline(context: Context) {
   const insertNewline = !(config.eggLikeNewline &&
     (context.state.type === "henkan" ||
       (context.state.type === "input" && context.state.mode !== "direct")));
-  kakutei(context);
+  await kakutei(context);
   if (insertNewline) {
     context.kakutei("\n");
   }
