@@ -150,6 +150,11 @@ export class SKKDictionary implements Dictionary {
   }
 }
 
+type UserDictionaryPath = {
+  path?: string;
+  rankPath?: string;
+};
+
 export class UserDictionary implements Dictionary {
   #okuriAri: Map<string, string[]>;
   #okuriNasi: Map<string, string[]>;
@@ -194,9 +199,10 @@ export class UserDictionary implements Dictionary {
       word,
       Array.from(new Set([candidate, ...oldCandidate])),
     );
+    this.#rank.set(candidate, Date.now());
   }
 
-  private async readFile(path: string) {
+  private async readFile(path: string, rankPath: string) {
     const lines = (await Deno.readTextFile(path)).split("\n");
 
     const okuriAriIndex = lines.indexOf(okuriAriMarker);
@@ -215,8 +221,9 @@ export class UserDictionary implements Dictionary {
     this.#okuriNasi = new Map(okuriNasiEntries);
   }
 
-  async load(path?: string) {
+  async load({ path, rankPath }: UserDictionaryPath = {}) {
     path = this.#path = path ?? this.#path;
+    rankPath = this.#rankPath = rankPath ?? this.#rankPath;
     if (path) {
       try {
         const stat = await Deno.stat(path);
@@ -225,7 +232,7 @@ export class UserDictionary implements Dictionary {
           return;
         }
         this.#loadTime = time;
-        await this.readFile(path);
+        await this.readFile(path, rankPath);
       } catch {
         // do nothing
       }
@@ -388,7 +395,7 @@ function parseEntries(lines: string[]): [string, string[]][] {
 
 export async function load(
   globalDictionaryPath: string,
-  userDictionaryPath: string,
+  userDictionaryPath: UserDictionaryPath,
   dictonaryEncoding = "euc-jp",
   skkServer?: SkkServer,
 ): Promise<Library> {

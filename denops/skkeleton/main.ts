@@ -40,6 +40,7 @@ async function init(denops: Denops) {
   }
   currentContext.get().denops = denops;
   const {
+    completionRankFile,
     globalJisyo,
     userJisyo,
     globalJisyoEncoding,
@@ -64,7 +65,10 @@ async function init(denops: Denops) {
   jisyo.currentLibrary.set(
     await jisyo.load(
       homeExpand(globalJisyo, homePath),
-      homeExpand(userJisyo, homePath),
+      {
+        path: homeExpand(userJisyo, homePath),
+        rankPath: homeExpand(completionRankFile, homePath),
+      },
       globalJisyoEncoding,
       skkServer,
     ),
