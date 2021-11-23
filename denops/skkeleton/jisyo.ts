@@ -101,14 +101,6 @@ export function wrapDictionary(dict: Dictionary): Dictionary {
   );
 }
 
-type DictEntry = {
-  candidate: string[];
-  // rankの値は並び順と時間を混ぜられるようにする
-  // 時系列で新しいほど前に出るようにするため
-  // 並び順は新しい物を後にする必要がある
-  rank: number;
-};
-
 export class SKKDictionary implements Dictionary {
   #okuriAri: Map<string, string[]>;
   #okuriNasi: Map<string, string[]>;
@@ -159,34 +151,37 @@ export class SKKDictionary implements Dictionary {
 }
 
 export class UserDictionary implements Dictionary {
-  #okuriAri: Map<string, DictEntry>;
-  #okuriNasi: Map<string, DictEntry>;
+  #okuriAri: Map<string, string[]>;
+  #okuriNasi: Map<string, string[]>;
+  #rank: Map<string, number>;
 
   #path = "";
+  #rankPath = "";
   #loadTime = -1;
 
   constructor(
-    okuriAri?: Map<string, DictEntry>,
-    okuriNasi?: Map<string, DictEntry>,
+    okuriAri?: Map<string, string[]>,
+    okuriNasi?: Map<string, string[]>,
+    rank?: Map<string, number>,
   ) {
     this.#okuriAri = okuriAri ?? new Map();
     this.#okuriNasi = okuriNasi ?? new Map();
+    this.#rank = rank ?? new Map();
   }
 
   getCandidate(type: HenkanType, word: string): Promise<string[]> {
     const target = type === "okuriari" ? this.#okuriAri : this.#okuriNasi;
-    return Promise.resolve(target.get(word)?.candidate ?? []);
+    return Promise.resolve(target.get(word) ?? []);
   }
 
   getCandidates(prefix: string): Promise<[string, string[]][]> {
-    const candidates: [string, DictEntry][] = [];
+    const candidates: [string, string[]][] = [];
     for (const entry of this.#okuriNasi) {
       if (entry[0].startsWith(prefix)) {
         candidates.push(entry);
       }
     }
-    candidates.sort((a, b) => b[1].rank - a[1].rank);
-    return Promise.resolve(candidates.map(([kana, e]) => [kana, e.candidate]));
+    return Promise.resolve(candidates);
   }
 
   registerCandidate(type: HenkanType, word: string, candidate: string) {
@@ -194,13 +189,10 @@ export class UserDictionary implements Dictionary {
       return;
     }
     const target = type === "okuriari" ? this.#okuriAri : this.#okuriNasi;
-    const oldCandidate = target.get(word)?.candidate ?? [];
+    const oldCandidate = target.get(word) ?? [];
     target.set(
       word,
-      {
-        candidate: Array.from(new Set([candidate, ...oldCandidate])),
-        rank: Date.now(),
-      },
+      Array.from(new Set([candidate, ...oldCandidate])),
     );
   }
 
@@ -219,14 +211,8 @@ export class UserDictionary implements Dictionary {
       lines.length,
     ));
 
-    this.#okuriAri = new Map(okuriAriEntries.map((e, i) => [e[0], {
-      candidate: e[1],
-      rank: i,
-    }]));
-    this.#okuriNasi = new Map(okuriNasiEntries.map((e, i) => [e[0], {
-      candidate: e[1],
-      rank: i,
-    }]));
+    this.#okuriAri = new Map(okuriAriEntries);
+    this.#okuriNasi = new Map(okuriNasiEntries);
   }
 
   async load(path?: string) {
@@ -250,12 +236,13 @@ export class UserDictionary implements Dictionary {
     if (!this.#path) {
       return;
     }
+    // Note: in SKK dictionary reverses candidates sort order if okuriari
     const okuriAri = Array.from(this.#okuriAri).sort((a, b) =>
       b[0].localeCompare(a[0])
-    ).map((e) => `${e[0]} /${e[1].candidate.join("/")}/`);
+    ).map((e) => `${e[0]} /${e[1].join("/")}/`);
     const okuriNasi = Array.from(this.#okuriNasi).sort((a, b) =>
-      a[1].rank - b[1].rank
-    ).map((e) => `${e[0]} /${e[1].candidate.join("/")}/`);
+      a[0].localeCompare(b[0])
+    ).map((e) => `${e[0]} /${e[1].join("/")}/`);
     const data = [
       [okuriAriMarker],
       okuriAri,
