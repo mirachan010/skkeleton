@@ -6,6 +6,7 @@ import { iter } from "./deps/std/io.ts";
 import { CompletionData, emptyCompletion, Encode } from "./types.ts";
 import type { Encoding, SkkServerOptions } from "./types.ts";
 import { Cell } from "./util.ts";
+import { ensureArray, isString } from "./deps/unknownutil.ts";
 
 const okuriAriMarker = ";; okuri-ari entries.";
 const okuriNasiMarker = ";; okuri-nasi entries.";
@@ -203,6 +204,7 @@ export class UserDictionary implements Dictionary {
   }
 
   private async readFile(path: string, rankPath: string) {
+    // dictionary
     const lines = (await Deno.readTextFile(path)).split("\n");
 
     const okuriAriIndex = lines.indexOf(okuriAriMarker);
@@ -219,6 +221,13 @@ export class UserDictionary implements Dictionary {
 
     this.#okuriAri = new Map(okuriAriEntries);
     this.#okuriNasi = new Map(okuriNasiEntries);
+    // rank
+    if (!rankPath) {
+      return;
+    }
+    const rankData = JSON.parse(await Deno.readTextFile(rankPath));
+    ensureArray(rankData, isString);
+    this.#rank = new Map(rankData.map((c, i) => [c, i]));
   }
 
   async load({ path, rankPath }: UserDictionaryPath = {}) {
@@ -239,10 +248,8 @@ export class UserDictionary implements Dictionary {
     }
   }
 
-  async save() {
-    if (!this.#path) {
-      return;
-    }
+  private async writeFile(path: string, rankPath: string) {
+    // dictionary
     // Note: in SKK dictionary reverses candidates sort order if okuriari
     const okuriAri = Array.from(this.#okuriAri).sort((a, b) =>
       b[0].localeCompare(a[0])
@@ -258,12 +265,46 @@ export class UserDictionary implements Dictionary {
       [""],
     ].flat().join("\n");
     try {
-      await Deno.writeTextFile(this.#path, data);
-    } catch {
+      await Deno.writeTextFile(path, data);
+    } catch (e) {
       console.log(
-        `warning(skkeleton): can't write userJisyo to ${this.#path}`,
+        `warning(skkeleton): can't write userJisyo to ${path}`,
       );
+      throw e;
     }
+    // rank
+    if (!rankPath) {
+      return;
+    }
+    const rankData = JSON.stringify(
+      Array.from(this.#rank.entries()).sort((a, b) => a[1] - b[1]).map((e) =>
+        e[0]
+      ),
+    );
+    try {
+      await Deno.writeTextFile(rankPath, rankData);
+    } catch (e) {
+      console.log(
+        `warning(skkeleton): can't write candidate rank data to ${rankPath}`,
+      );
+      throw e;
+    }
+  }
+
+  async save() {
+    if (!this.#path) {
+      return;
+    }
+    try {
+      await this.writeFile(this.#path, this.#rankPath);
+    } catch (e) {
+      if (config.debug) {
+        console.log(e);
+      }
+      return;
+    }
+    const stat = await Deno.stat(this.#path).catch(() => void 0);
+    this.#loadTime = stat?.mtime?.getTime() ?? -1;
   }
 }
 
