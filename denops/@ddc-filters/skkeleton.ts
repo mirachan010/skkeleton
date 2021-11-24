@@ -6,12 +6,16 @@ export class Filter extends BaseFilter<Record<string, never>> {
   async filter(
     args: FilterArguments<Record<string, never>>,
   ): Promise<Candidate[]> {
+    const candidates = args.candidates as Candidate<CompletionMetadata>[];
     const prefix =
       (await args.denops.dispatch("skkeleton", "getPrefix")) as string;
-    return Promise.resolve(args.candidates.filter(
+    candidates
+      .sort((a, b) =>
+        (a.user_data!.rank - b.user_data!.rank) || a.word.localeCompare(b.word)
+      );
+    return Promise.resolve(candidates.filter(
       (candidate) => {
-        const meta = candidate.user_data as unknown as CompletionMetadata;
-        return meta && meta.kana.startsWith(prefix);
+        candidate.user_data!.kana.startsWith(prefix);
       },
     ));
   }

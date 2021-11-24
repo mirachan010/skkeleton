@@ -4,15 +4,16 @@ import {
   GetCompletePositionArguments,
   OnCompleteDoneArguments,
 } from "../skkeleton/deps/ddc/source.ts";
-import { Candidate, CompletionData } from "../skkeleton/deps/ddc/types.ts";
+import { Candidate } from "../skkeleton/deps/ddc/types.ts";
 import {
-  CompletionData as SkkeletonCompletionData,
+  CompletionData,
   RankData,
-} from "../../skkeleton/types.ts";
+} from "../skkeleton/types.ts";
 
 export type CompletionMetadata = {
   kana: string;
   word: string;
+  rank: number;
 };
 
 export class Source
@@ -32,7 +33,7 @@ export class Source
     const candidates = (await args.denops.dispatch(
       "skkeleton",
       "getCandidates",
-    )) as SkkeletonCompletionData;
+    )) as CompletionData;
     const ranks = new Map(
       (await args.denops.dispatch(
         "skkeleton",
@@ -47,7 +48,7 @@ export class Source
         user_data: {
           kana: e[0],
           word,
-          rank: ranks[word] ?? now,
+          rank: ranks.get(word) ?? now,
         },
       }));
     });

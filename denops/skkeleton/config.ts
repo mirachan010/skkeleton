@@ -7,7 +7,7 @@ import { Encode, Encoding } from "./types.ts";
 
 export const config = {
   acceptIllegalResult: false,
-  completionRankFile: "",
+  completionRankFile: "/tmp/rank",
   debug: false,
   eggLikeNewline: false,
   globalJisyo: "/usr/share/skk/SKK-JISYO.L",
