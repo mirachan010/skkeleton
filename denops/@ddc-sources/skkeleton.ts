@@ -5,6 +5,10 @@ import {
   OnCompleteDoneArguments,
 } from "../skkeleton/deps/ddc/source.ts";
 import { Candidate, CompletionData } from "../skkeleton/deps/ddc/types.ts";
+import {
+  CompletionData as SkkeletonCompletionData,
+  RankData,
+} from "../../skkeleton/types.ts";
 
 export type CompletionMetadata = {
   kana: string;
@@ -25,10 +29,17 @@ export class Source
   async gatherCandidates(
     args: GatherCandidatesArguments<Record<string, never>>,
   ): Promise<Candidate<CompletionMetadata>[]> {
-    const { candidates, ranks } = (await args.denops.dispatch(
+    const candidates = (await args.denops.dispatch(
       "skkeleton",
       "getCandidates",
-    )) as CompletionData;
+    )) as SkkeletonCompletionData;
+    const ranks = new Map(
+      (await args.denops.dispatch(
+        "skkeleton",
+        "getRanks",
+      )) as RankData,
+    );
+    const now = Date.now();
     const ddcCandidates = candidates.flatMap((e) => {
       return e[1].map((word) => ({
         word: word.replace(/;.*$/, ""),
@@ -36,6 +47,7 @@ export class Source
         user_data: {
           kana: e[0],
           word,
+          rank: ranks[word] ?? now,
         },
       }));
     });

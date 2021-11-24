@@ -1,14 +1,7 @@
 import { isObject } from "./deps/unknownutil.ts";
 
-export type CompletionData = {
-  candidates: [string, string[]][];
-  ranks: [string, number][];
-};
-
-export const emptyCompletion: CompletionData = {
-  candidates: [],
-  ranks: [],
-};
+export type CompletionData = [string, string[]][];
+export type RankData = [string, number][];
 
 export type CompletionMetadata = {
   tag: "skkeleton";
