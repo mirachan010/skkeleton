@@ -7,6 +7,7 @@ import { CompletionData, emptyCompletion, Encode } from "./types.ts";
 import type { Encoding, SkkServerOptions } from "./types.ts";
 import { Cell } from "./util.ts";
 import { ensureArray, isString } from "./deps/unknownutil.ts";
+import { wrap } from "./deps/iterator_helpers.ts";
 
 const okuriAriMarker = ";; okuri-ari entries.";
 const okuriNasiMarker = ";; okuri-nasi entries.";
@@ -165,6 +166,9 @@ export class UserDictionary implements Dictionary {
   #rankPath = "";
   #loadTime = -1;
 
+  #cachedPrefix = "";
+  #cachedCandidates: [string, string[]][] = [];
+
   constructor(
     okuriAri?: Map<string, string[]>,
     okuriNasi?: Map<string, string[]>,
@@ -180,14 +184,35 @@ export class UserDictionary implements Dictionary {
     return Promise.resolve(target.get(word) ?? []);
   }
 
-  getCandidates(prefix: string): Promise<[string, string[]][]> {
+  private cacheCandidates(prefix: string) {
+    if (this.#cachedPrefix === prefix) {
+      return;
+    }
     const candidates: [string, string[]][] = [];
     for (const entry of this.#okuriNasi) {
       if (entry[0].startsWith(prefix)) {
         candidates.push(entry);
       }
     }
-    return Promise.resolve(candidates);
+    this.#cachedPrefix = prefix;
+    this.#cachedCandidates = candidates;
+  }
+
+  getCandidates(prefix: string): Promise<[string, string[]][]> {
+    this.cacheCandidates(prefix);
+    return Promise.resolve(this.#cachedCandidates);
+  }
+
+  getRanks(prefix: string): [string, number][] {
+    const set = new Set();
+    const adder = set.add.bind(set);
+    this.cacheCandidates(prefix);
+    for (const [, cs] of this.#cachedCandidates) {
+      cs.forEach(adder);
+    }
+    return wrap(this.#rank.entries())
+      .filter((e) => set.has(e[0]))
+      .toArray();
   }
 
   registerCandidate(type: HenkanType, word: string, candidate: string) {
@@ -201,6 +226,7 @@ export class UserDictionary implements Dictionary {
       Array.from(new Set([candidate, ...oldCandidate])),
     );
     this.#rank.set(candidate, Date.now());
+    this.#cachedPrefix = "";
   }
 
   private async readFile(path: string, rankPath: string) {
@@ -245,6 +271,7 @@ export class UserDictionary implements Dictionary {
       } catch {
         // do nothing
       }
+      this.#cachedPrefix = "";
     }
   }
 
