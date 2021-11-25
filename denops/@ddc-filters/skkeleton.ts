@@ -11,12 +11,12 @@ export class Filter extends BaseFilter<Record<string, never>> {
       (await args.denops.dispatch("skkeleton", "getPrefix")) as string;
     candidates
       .sort((a, b) =>
-        (a.user_data!.rank - b.user_data!.rank) || a.word.localeCompare(b.word)
+        b.user_data!.rank - a.user_data!.rank ||
+        a.user_data!.kana.localeCompare(b.user_data!.kana) ||
+        a.word.localeCompare(b.word)
       );
     return Promise.resolve(candidates.filter(
-      (candidate) => {
-        candidate.user_data!.kana.startsWith(prefix);
-      },
+      (candidate) => candidate.user_data!.kana.startsWith(prefix),
     ));
   }
 

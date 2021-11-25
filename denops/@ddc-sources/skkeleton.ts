@@ -40,7 +40,6 @@ export class Source
         "getRanks",
       )) as RankData,
     );
-    const now = Date.now();
     const ddcCandidates = candidates.flatMap((e) => {
       return e[1].map((word) => ({
         word: word.replace(/;.*$/, ""),
@@ -48,7 +47,7 @@ export class Source
         user_data: {
           kana: e[0],
           word,
-          rank: ranks.get(word) ?? now,
+          rank: ranks.get(word) ?? -1,
         },
       }));
     });
