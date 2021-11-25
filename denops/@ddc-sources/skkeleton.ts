@@ -5,10 +5,7 @@ import {
   OnCompleteDoneArguments,
 } from "../skkeleton/deps/ddc/source.ts";
 import { Candidate } from "../skkeleton/deps/ddc/types.ts";
-import {
-  CompletionData,
-  RankData,
-} from "../skkeleton/types.ts";
+import { CompletionData, RankData } from "../skkeleton/types.ts";
 
 export type CompletionMetadata = {
   kana: string;
