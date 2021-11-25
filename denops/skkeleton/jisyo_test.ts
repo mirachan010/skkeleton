@@ -13,12 +13,6 @@ const globalJisyo = join(
   "globalJisyo",
 );
 
-const userJisyo = join(
-  dirname(fromFileUrl(import.meta.url)),
-  "testdata",
-  "userJisyo",
-);
-
 const numJisyo = join(
   dirname(fromFileUrl(import.meta.url)),
   "testdata",
